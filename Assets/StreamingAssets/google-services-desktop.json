@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "591822403498",
+    "firebase_url": "https://quizb1t-default-rtdb.firebaseio.com",
+    "project_id": "quizb1t",
+    "storage_bucket": "quizb1t.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:591822403498:android:19123a7464419153e01dd3",
+        "android_client_info": {
+          "package_name": "com.DefaultCompany.QuizB1t"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCxnhx9m4B9AEtvTSonmY3na11lKI_vLik"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
