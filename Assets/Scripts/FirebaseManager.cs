@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using Firebase;
 using Firebase.Database;
@@ -7,9 +8,34 @@ using TMPro;
 using System.Threading.Tasks;
 using System.Security.Cryptography.X509Certificates;
 using System.Linq;
+using UnityEngine.UI;
+using Unity.VisualScripting;
+using System.Runtime.CompilerServices;
+
+public struct Question
+{
+    public string question;
+    public string answer1;
+    public string answer2;
+    public string answer3;
+    public string answer4;
+    public string rightAnswer;
+
+    public Question(string que, string ans1, string ans2, string ans3, string ans4, string rans)
+    {
+        question = que;
+        answer1 = ans1;
+        answer2 = ans2;
+        answer3 = ans3;
+        answer4 = ans4;
+        rightAnswer = rans;
+    }
+}
 
 public class FirebaseManager : MonoBehaviour
 {
+    public static FirebaseManager instance;
+
     //Firebase variables
     [Header("Firebase")]
     public DependencyStatus dependencyStatus;
@@ -34,15 +60,31 @@ public class FirebaseManager : MonoBehaviour
 
     //UserData variables
     [Header("UserData")]
+    public Button usernameButton;
     public TMP_InputField usernameField;
-    public TMP_InputField xpField;
-    public TMP_InputField killsField;
-    public TMP_InputField deathsField;
+    public TMP_InputField correctAnswers;
+    public TMP_InputField openedLvlsField;
+    public TMP_InputField openedLvls;
     public GameObject scoreElement;
     public Transform scoreBoardContent;
 
+    //Lvls variables
+    [Header("Lvls")]
+    public GameObject firstBtn, secondBtn, thirdBtn;
+    public List<Question> questions = new List<Question>(); //questions for ONE lvl
+    public int openedLvlsForUI;
+
     void Awake()
     {
+        if (instance == null)
+        {
+            instance = this;
+        }
+        else if (instance != this)
+        {
+            Destroy(gameObject);
+        }
+
         //Check that all of the necessary dependencies for Firebase are present on the system
         FirebaseApp.CheckAndFixDependenciesAsync().ContinueWith(task =>
         {
@@ -63,12 +105,14 @@ public class FirebaseManager : MonoBehaviour
         Debug.Log("Setting up Firebase Auth");
         auth = FirebaseAuth.DefaultInstance;
         DBReference = FirebaseDatabase.DefaultInstance.RootReference;
+        //DBReference.KeepSynced(true); //DELETE WHEN I FINISH DEVELOPMENT. NO NEED TO SYNCHRONIZE DATA
     }
 
     public void ClearLoginFields()
     {
         emailLoginField.text = "";
         passwordLoginField.text = "";
+        warningLoginText.text = "";
     }
 
     public void ClearRegisterFields()
@@ -77,6 +121,7 @@ public class FirebaseManager : MonoBehaviour
         emailRegisterField.text = "";
         passwordRegisterField.text = "";
         passwordRegisterVerifyField.text = "";
+        warningRegisterText.text = "";
     }
 
     public void LoginButton()
@@ -97,19 +142,37 @@ public class FirebaseManager : MonoBehaviour
         ClearLoginFields();
     }
 
+    //Скорее всего надо будет удалить этот метод
     public void SaveDataButton()
     {
         StartCoroutine(UpdateUsernameAuth(usernameField.text));
         StartCoroutine(UpdateUsernameDatabase(usernameField.text));
 
-        StartCoroutine(UpdateXp(int.Parse(xpField.text)));
-        StartCoroutine(UpdateKills(int.Parse(killsField.text)));
-        StartCoroutine(UpdateDeaths(int.Parse(deathsField.text)));
+        StartCoroutine(UpdateCorrectAnswers(int.Parse(correctAnswers.text)));
+        StartCoroutine(UpdateMistakes(int.Parse(openedLvlsField.text)));
+        StartCoroutine(UpdateOpenedLvls(int.Parse(openedLvls.text)));
     }
 
     public void ScoreboardButton()
     {
         StartCoroutine(LoadScoreboardData());
+    }
+
+    public void UsernameOpenButton()
+    {
+        UIManager.instance.OpenUsernamePanel();
+    }
+
+    public void UsernameSaveButton()
+    {
+        StartCoroutine(UpdateUsernameAuth(usernameField.text));
+        StartCoroutine(UpdateUsernameDatabase(usernameField.text));
+    }
+
+    public void UsernameCloseButton()
+    {
+        UIManager.instance.CloseUsernamePanel();
+        usernameField.text = "";
     }
 
     private IEnumerator Login(string _email, string _password)
@@ -154,7 +217,8 @@ public class FirebaseManager : MonoBehaviour
 
             yield return new WaitForSeconds(2);
 
-            usernameField.text = User.DisplayName;
+            //usernameButton.GetComponent<Text>().text = User.DisplayName; //don't work if changes occurred on Firebase.com
+            //usernameField.text = User.DisplayName;
             UIManager.instance.UserDataScreen();
             confirmLoginText.text = "";
             ClearLoginFields();
@@ -272,12 +336,13 @@ public class FirebaseManager : MonoBehaviour
         else
         {
             //Database username is now updated
+            usernameButton.GetComponent<Text>().text = _username;
         }
     }
 
-    public IEnumerator UpdateXp(int _xp)
+    public IEnumerator UpdateCorrectAnswers(int _correctAnswers)
     {
-        var DBTask = DBReference.Child("users").Child(User.UserId).Child("xp").SetValueAsync(_xp);
+        var DBTask = DBReference.Child("users").Child(User.UserId).Child("correctAnswers").SetValueAsync(_correctAnswers);
 
         yield return new WaitUntil(predicate: () => DBTask.IsCompleted);
 
@@ -287,13 +352,13 @@ public class FirebaseManager : MonoBehaviour
         }
         else
         {
-            //Xp is now updated
+            //CorrectAnswers is now updated
         }
     }
 
-    public IEnumerator UpdateKills(int _kills)
+    public IEnumerator UpdateMistakes(int _mistakes)
     {
-        var DBTask = DBReference.Child("users").Child(User.UserId).Child("kills").SetValueAsync(_kills);
+        var DBTask = DBReference.Child("users").Child(User.UserId).Child("mistakes").SetValueAsync(_mistakes);
 
         yield return new WaitUntil(predicate: () => DBTask.IsCompleted);
 
@@ -303,13 +368,13 @@ public class FirebaseManager : MonoBehaviour
         }
         else
         {
-            //Kills are now updated
+            //Mistakes are now updated
         }
     }
 
-    public IEnumerator UpdateDeaths(int _deaths)
+    public IEnumerator UpdateOpenedLvls(int _openedLvls)
     {
-        var DBTask = DBReference.Child("users").Child(User.UserId).Child("deaths").SetValueAsync(_deaths);
+        var DBTask = DBReference.Child("users").Child(User.UserId).Child("openedLvls").SetValueAsync(_openedLvls);
 
         yield return new WaitUntil(predicate: () => DBTask.IsCompleted);
 
@@ -319,7 +384,9 @@ public class FirebaseManager : MonoBehaviour
         }
         else
         {
-            //Deaths are now updated
+            //OpenedLvls are now updated
+            openedLvlsForUI = _openedLvls;
+            GameManager.instance.EndGame();
         }
     }
 
@@ -336,24 +403,30 @@ public class FirebaseManager : MonoBehaviour
         else if (DBTask.Result.Value == null)
         {
             //No data exist
-            xpField.text = "0";
-            killsField.text = "0";
-            deathsField.text = "0";
+            correctAnswers.text = "0";
+            openedLvlsField.text = "0";
+            openedLvls.text = "0";
         }
         else
         {
             //Data has been retrieved
             DataSnapshot snapshot = DBTask.Result;
 
-            xpField.text = snapshot.Child("xp").Value.ToString();
-            killsField.text = snapshot.Child("kills").Value.ToString();
-            deathsField.text = snapshot.Child("deaths").Value.ToString();
+            usernameButton.GetComponent<Text>().text = snapshot.Child("username").Value.ToString(); //update if I changed username on Firebase.com
+            correctAnswers.text = snapshot.Child("correctAnswers").Value.ToString();
+            openedLvlsField.text = snapshot.Child("openedLvls").Value.ToString();
+            openedLvlsForUI = int.Parse(snapshot.Child("openedLvls").Value.ToString());
+            openedLvls.text = snapshot.Child("openedLvls").Value.ToString();
+
+            UserData.CorrectAnswers_Player = int.Parse(correctAnswers.text);
+            UserData.OpenedLvls_Player = int.Parse(openedLvlsField.text);
+            UserData.Mistakes_Player = int.Parse(openedLvls.text);
         }
     }
 
     private IEnumerator LoadScoreboardData()
     {
-        var DBTask = DBReference.Child("users").OrderByChild("kills").GetValueAsync();
+        var DBTask = DBReference.Child("users").OrderByChild("openedLvls").GetValueAsync();
 
         yield return new WaitUntil(predicate: () => DBTask.IsCompleted);
 
@@ -376,17 +449,80 @@ public class FirebaseManager : MonoBehaviour
             foreach (DataSnapshot childSnapshot in snapshot.Children.Reverse<DataSnapshot>())
             {
                 string username = childSnapshot.Child("username").Value.ToString();
-                int kills = int.Parse(childSnapshot.Child("kills").Value.ToString());
-                int deaths = int.Parse(childSnapshot.Child("deaths").Value.ToString());
-                int xp = int.Parse(childSnapshot.Child("xp").Value.ToString());
+                int openedLvls = int.Parse(childSnapshot.Child("openedLvls").Value.ToString());
+                int mistakes = int.Parse(childSnapshot.Child("mistakes").Value.ToString());
+                int correctAnswers = int.Parse(childSnapshot.Child("correctAnswers").Value.ToString());
 
                 //Instantiate new scoreboard elements
                 GameObject scoreboardElement = Instantiate(scoreElement, scoreBoardContent);
-                scoreboardElement.GetComponent<ScoreElement>().NewScoreElement(username, kills, deaths, xp);
+                scoreboardElement.GetComponent<ScoreElement>().NewScoreElement(username, openedLvls, correctAnswers, mistakes);
             }
 
             //Go to scoreboard screen
             UIManager.instance.ScoreboardScreen();
         }
+    }
+
+    //=======================================FOR QUESTIONS=======================================
+
+    public void OpenLvl(string lvlChoice)
+    {
+        for (int i = 0; i < UIManager.instance.lvlButtons.Length; i++)
+        {
+            UIManager.instance.lvlButtons[i].GetComponent<Button>().interactable = false; //for only ONE click on button
+        }
+        StartCoroutine(LoadQuestions(lvlChoice));
+        UserData.currentLvl = int.Parse(lvlChoice);
+        UIManager.instance.ClearScreen();
+    }
+
+
+    private IEnumerator LoadQuestions(string selectedLvl)
+    {
+        var DBTask = DBReference.Child("lvls").Child(selectedLvl).GetValueAsync();
+
+        yield return new WaitUntil(predicate: () => DBTask.IsCompleted);
+
+        if (DBTask.Exception != null)
+        {
+            Debug.LogWarning(message: $"Failed to register task with {DBTask.Exception}");
+        }
+        else if (DBTask.Result.Value == null)
+        {
+            //No data exist
+            questions.Add(new Question("Вопрос не загружен", "Ошибка", "Загрузки", "Данных", "Better Call B1t", ""));
+        }
+        else
+        {
+            //Data has been retrieved
+            DataSnapshot snapshot = DBTask.Result;
+
+            foreach (DataSnapshot childSnapshot in snapshot.Children.Reverse<DataSnapshot>())
+            {
+                string question = childSnapshot.Child("question").Value.ToString();
+                string answer1 = childSnapshot.Child("answer1").Value.ToString();
+                string answer2 = childSnapshot.Child("answer2").Value.ToString();
+                string answer3 = childSnapshot.Child("answer3").Value.ToString();
+                string answer4 = childSnapshot.Child("answer4").Value.ToString();
+                string rightAnswer = childSnapshot.Child("rightAnswer").Value.ToString();
+
+                questions.Add(new Question(question, answer1, answer2, answer3, answer4, rightAnswer));
+            }
+            GameManager.instance.questions = questions; //send list of questions to GameManager
+            UIManager.instance.OpenGameScreen();
+            GameManager.instance.lives = 3;
+            GameManager.instance.mistakes = 0;
+            GameManager.instance.correctAnswers = 0;
+            GameManager.instance.ShowQuestion();
+            Debug.Log($"Count questions in FirebaseManager - {questions.Count}");
+        }
+    }
+
+    //============================================FOR DEBUG=================================DELETE AFTER END OF DEVELOPMENT
+
+    public void EnterData()
+    {
+        emailLoginField.text = "b1t@gmail.com";
+        passwordLoginField.text = "b1t12345";
     }
 }
