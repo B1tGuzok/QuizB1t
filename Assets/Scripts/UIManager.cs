@@ -16,20 +16,36 @@ public class UIManager : MonoBehaviour
     public GameObject scoreboardUI;
     public GameObject gameUI;
     public GameObject changeUsernameUI;
-    public GameObject lvlButtonsUI;
     public GameObject endWindowUI;
 
-    public Component[] lvlButtons; //for buttons component
-    public Sprite unlockLvl;
-    public Sprite win;
-    public Sprite lose;
-    bool lvlButtonsActive = false;
 
+    public GameObject chooseActionUI;
+    public GameObject blockUserDataPanel;
+    public GameObject closeGameLoginWindowUI;
+    public GameObject blockLoginPanel;
+    public GameObject closeGameRegisterWindowUI;
+    public GameObject blockRegisterPanel;
+    public GameObject settingsUI;
+    public Text username;
+    public TMP_InputField username_Input;
+
+
+    public GameObject lvlButtonsUI;
+    public bool lvlButtonsActive = false;
+    public GameObject confirmEndGameWindow;
     public Text correctAnswers;
     public Text lives;
+    public Sprite win;
+    public Sprite lose;
     public Text endText;
 
-    int openedLvls = 1;
+    public List<Button> lvlButtons;
+
+
+    //public Component[] lvlButtons; //for buttons component
+    public Sprite unlockLvl;
+    public Sprite lockLvl;
+    public Button menuButton;
 
     private void Awake()
     {
@@ -44,7 +60,7 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    public void ClearScreen()
+    public void ClearScreen() //Под Вопросом
     {
         loginUI.SetActive(false);
         registerUI.SetActive(false);
@@ -70,27 +86,15 @@ public class UIManager : MonoBehaviour
 
     public void UserDataScreen() // Logged In
     {
-        ClearScreen();
-        openedLvls = FirebaseManager.instance.openedLvlsForUI;
-        UpdateLvlButtons();
+        Clear();
+        //openedLvls = FirebaseManager.instance.openedLvlsForUI;
+        //UpdateLvlButtons();
         userDataUI.SetActive(true);
     }
 
     public void ScoreboardScreen() // Scoreboard button
     {
-        ClearScreen();
         scoreboardUI.SetActive(true);
-    }
-
-    public void OpenGameScreen()
-    {
-        gameUI.SetActive(true);
-    }
-
-    public void CloseGameScreen()
-    {
-        gameUI.SetActive(false);
-        UserDataScreen();
     }
 
     public void OpenUsernamePanel()
@@ -101,6 +105,73 @@ public class UIManager : MonoBehaviour
     public void CloseUsernamePanel()
     {
         changeUsernameUI.SetActive(false);
+    }
+
+    public void UpdateLvlButtons()
+    {
+        foreach(Button btn in lvlButtons)
+        {
+            if (int.Parse(btn.GetComponentInChildren<TextMeshProUGUI>().text) > UserData.OpenedLvls_Player)
+            {
+                btn.interactable = false;
+                btn.GetComponent<Image>().sprite = lockLvl;
+            }
+            else
+            {
+                btn.interactable = true;
+                btn.GetComponent<Image>().sprite = unlockLvl;
+            }
+        }
+    }
+
+    public void LockLvlButtons()
+    {
+        foreach (Button btn in lvlButtons)
+            btn.interactable = false;
+    }
+
+    public void UnlockLvlButtons() // Don't use
+    {
+        foreach (Button btn in lvlButtons)
+            btn.interactable = true;
+    }
+
+    //NEW================================================
+
+    public void GameScreen()
+    {
+        Clear();
+        gameUI.SetActive(true);
+    }
+
+    public void Clear()
+    {
+        loginUI.SetActive(false);
+        registerUI.SetActive(false);
+        userDataUI.SetActive(false);
+        gameUI.SetActive(false);
+    }
+
+    public void OpenConfirmEndGameWindow()
+    {
+        confirmEndGameWindow.SetActive(true);
+    }
+
+    public void CloseConfirmEndGameWindow()
+    {
+        confirmEndGameWindow.SetActive(false);
+    }
+
+    public void ToggleLvlButtons()
+    {
+        lvlButtonsActive = !lvlButtonsActive;
+        lvlButtonsUI.SetActive(lvlButtonsActive);
+    }
+
+    public void UpdateGameLabels(int _correctAnswers, int _lives)
+    {
+        correctAnswers.text = _correctAnswers.ToString() + " / 10";
+        lives.text = _lives.ToString();
     }
 
     public void OpenEndWindow(bool _win)
@@ -116,7 +187,6 @@ public class UIManager : MonoBehaviour
             endWindowUI.GetComponent<Image>().sprite = lose;
             endText.text = "Вы проиграли!";
             endWindowUI.SetActive(true);
-            Debug.Log("ТЫ ЛОХ");
         }
     }
 
@@ -125,38 +195,25 @@ public class UIManager : MonoBehaviour
         endWindowUI.SetActive(false);
     }
 
-    public void PlayButton()
+    public void onCloseGameButtonClick()
     {
-        lvlButtonsActive = !lvlButtonsActive;
-        lvlButtonsUI.SetActive(lvlButtonsActive);
+        closeGameLoginWindowUI.SetActive(true);
+        closeGameRegisterWindowUI.SetActive(true);
+        blockLoginPanel.SetActive(true);
+        blockRegisterPanel.SetActive(true);
     }
 
-    private void UpdateLvlButtons()
+    public void onYesCloseGameButtonClick()
     {
-        lvlButtons = lvlButtonsUI.GetComponentsInChildren<Button>(); //get all buttons component
-
-        for (int i = 0; i < lvlButtons.Length; i++)
-        {
-            if (i + 1 > openedLvls)
-            {
-                lvlButtons[i].GetComponent<Button>().interactable = false;
-            }
-            else
-            {
-                lvlButtons[i].GetComponent<Button>().interactable = true;
-                ChangeLvlButtonSprite(lvlButtons[i].GetComponent<Image>());
-            }
-        }
+        Application.Quit();
+        Debug.Log("Game closed!");
     }
 
-    private void ChangeLvlButtonSprite(Component Image)
+    public void onNoCloseGameButtonClick()
     {
-        Image.GetComponent<Image>().sprite = unlockLvl;
-    }
-
-    private void OnGUI()
-    {
-        correctAnswers.text = GameManager.instance.correctAnswers.ToString() + " / 10";
-        lives.text = GameManager.instance.lives.ToString();
+        closeGameLoginWindowUI.SetActive(false);
+        closeGameRegisterWindowUI.SetActive(false);
+        blockLoginPanel.SetActive(false);
+        blockRegisterPanel.SetActive(false);
     }
 }

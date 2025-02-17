@@ -5,6 +5,7 @@ using UnityEngine;
 public static class UserData
 {
     public static int currentLvl;
+    private static string username_Player;
     private static int openedLvls_Player;
     private static int correctAnswers_Player;
     private static int mistakes_Player;
@@ -52,5 +53,26 @@ public static class UserData
             else
                 mistakes_Player = value;
         }
+    }
+
+    static public string Username_Player
+    {
+        get
+        {
+            return username_Player;
+        }
+        set
+        {
+            username_Player = value;
+        }
+    }
+
+    public static void ClearData()
+    {
+        currentLvl = 0;
+        Username_Player = "";
+        CorrectAnswers_Player = 0;
+        Mistakes_Player = 0;
+        OpenedLvls_Player = 1;
     }
 }

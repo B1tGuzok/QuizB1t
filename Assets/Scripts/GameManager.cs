@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,31 +10,30 @@ public class GameManager : MonoBehaviour
     public static GameManager instance;
 
     //Player variables
-    [Header("Player")]
+    [Header("Player Data")]
     public int lives;
     public int mistakes;
     public int correctAnswers;
 
-    //Question Data variables
+    //Question variables
     [Header("Question Data")]
-    public Text question;
-    public Button answer1;
-    public Button answer2;
-    public Button answer3;
-    public Button answer4;
-    public Button pressedButton;
-    public Button rightButton;
-    public Button menuButton;
+    public Text questionTitle;
+    public List<Question> questions = new List<Question>();
+    public List<Button> answerButtons;
     public string rightAnswer;
     public string userAnswer;
-    public List<Question> questions;
-    int questionID;
+    public Button pressedYesButton; // To avoid double click
+    public Button pressedNoButton; // To avoid unnecessary closure of confirmWindow
+    public Button rightButton; // To set right sprite
+    public Button exitButton; // To hide exit button
 
-    //Sprites Data variables
+    //Sprites variables
     [Header("Sprites Data")]
     public Sprite rightSprite;
     public Sprite wrongSprite;
     public Sprite defaultSprite;
+
+
 
     private void Awake()
     {
@@ -48,14 +48,122 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    public void onPlayButtonClick()
+    {
+        UIManager.instance.ToggleLvlButtons();
+    }
+
+    public void onLvlButtonClick(string _selectedLvl)
+    {
+        UserData.currentLvl = int.Parse(_selectedLvl); // Save player's choice for opening new lvls
+        lives = 3;
+        mistakes = 0;
+        correctAnswers = 0;
+        UIManager.instance.LockLvlButtons();
+        UIManager.instance.UpdateGameLabels(correctAnswers, lives);
+        StartCoroutine(FirebaseManager.instance.LoadQuestions(_selectedLvl, questions));
+    }
+
+    public void onMenuButtonClick()
+    {
+        foreach (Button btn in answerButtons)
+        {
+            btn.GetComponent<Button>().interactable = false;
+        }
+        UIManager.instance.OpenConfirmEndGameWindow();
+    }
+
+    public void onYesConfirmEndGameButtonClick()
+    {
+        pressedYesButton.interactable = false;
+        pressedNoButton.interactable = false;
+        StartCoroutine(EndGame());
+    }
+
+    public void onNoConfirmEndGameButtonClick()
+    {
+        foreach (Button btn in answerButtons)
+        {
+            btn.GetComponent<Button>().interactable = true;
+        }
+        UIManager.instance.CloseConfirmEndGameWindow();
+    }
+
+    public void onExitButtonClick()
+    {
+        UIManager.instance.chooseActionUI.SetActive(true);
+        UIManager.instance.blockUserDataPanel.SetActive(true);
+        exitButton.gameObject.SetActive(false);
+    }
+
+    public void onChangeAccountButtonClick()
+    {
+        UIManager.instance.chooseActionUI.SetActive(false);
+        UIManager.instance.blockUserDataPanel.SetActive(false);
+        UIManager.instance.blockLoginPanel.SetActive(false);
+        UIManager.instance.blockRegisterPanel.SetActive(false);
+        exitButton.gameObject.SetActive(true);
+        FirebaseManager.instance.SignOut();
+    }
+
+    public void onCloseGameButtonClick()
+    {
+        Application.Quit();
+        Debug.Log("Game closed!");
+    }
+
+    public void onCloseChooseActionUIButtonClick()
+    {
+        exitButton.gameObject.SetActive(true);
+        UIManager.instance.chooseActionUI.SetActive(false);
+        UIManager.instance.blockUserDataPanel.SetActive(false);
+    }
+
+    public void onSettingsButtonClick()
+    {
+        UIManager.instance.username_Input.text = UserData.Username_Player;
+        UIManager.instance.settingsUI.SetActive(true);
+        UIManager.instance.blockUserDataPanel.SetActive(true);
+    }
+
+    public void onCloseSettingsButtonClick()
+    {
+        UIManager.instance.settingsUI.SetActive(false);
+        UIManager.instance.blockUserDataPanel.SetActive(false);
+    }
+
+    public void onSaveSettingsButtonClick()
+    {
+        AudioManager.instance.Save();
+        string newUsername = UIManager.instance.username_Input.text;
+        if (newUsername != UserData.Username_Player)
+        {
+            UIManager.instance.username.text = newUsername;
+            UserData.Username_Player = newUsername;
+            StartCoroutine(FirebaseManager.instance.UpdateUsernameAuth(newUsername));
+            StartCoroutine(FirebaseManager.instance.UpdateUsernameDatabase(newUsername));
+        }
+        onCloseSettingsButtonClick();
+    }
+
+    public void onScoreboardButtonClick()
+    {
+        UIManager.instance.blockUserDataPanel.SetActive(true);
+        StartCoroutine(FirebaseManager.instance.LoadScoreboardData());
+    }
+
+    public void onCloseScoreboardButtonClick()
+    {
+        UIManager.instance.blockUserDataPanel.SetActive(false);
+        UIManager.instance.scoreboardUI.SetActive(false);
+    }
+
     public void ShowQuestion()
     {
-        menuButton.interactable = true;
+        int questionID = Random.Range(0, questions.Count);
 
-        questionID = Random.Range(0, questions.Count);
+        questionTitle.text = questions[questionID].question;
 
-        Debug.Log($"QuestionID - {questionID}");
-        Debug.Log($"Count questions in GameManager - {questions.Count}");
         List<string> answers = new List<string>()
         {
             questions[questionID].answer1,
@@ -63,8 +171,9 @@ public class GameManager : MonoBehaviour
             questions[questionID].answer3,
             questions[questionID].answer4
         };
+
         List<int> rnd = new List<int> { 10, 10, 10, 10 }; //can use any number except 0, 1, 2, 3
-        for (int i = 0; i < rnd.Count; i++) //for random answer positions
+        for (int i = 0; i < rnd.Count; i++) // Suffle rnd array
         {
             int k;
             do
@@ -75,95 +184,91 @@ public class GameManager : MonoBehaviour
             rnd[i] = k;
         }
 
-        question.text = questions[questionID].question;
-        answer1.GetComponentInChildren<TextMeshProUGUI>().text = answers[rnd[0]];
-        answer2.GetComponentInChildren<TextMeshProUGUI>().text = answers[rnd[1]];
-        answer3.GetComponentInChildren<TextMeshProUGUI>().text = answers[rnd[2]];
-        answer4.GetComponentInChildren<TextMeshProUGUI>().text = answers[rnd[3]];
-        rightAnswer = questions[questionID].rightAnswer;
-
-        List<Button> searchRightButton = new List<Button>() { answer1, answer2, answer3, answer4 };
-        for (int i = 0; i < searchRightButton.Count; i++)
+        for (int i = 0; i < answerButtons.Count; i++)
         {
-            if (searchRightButton[i].GetComponentInChildren<TextMeshProUGUI>().text == rightAnswer)
-                rightButton = searchRightButton[i];
-            else
-                Debug.Log("Error! Right Button didn't found!");
+            answerButtons[i].GetComponentInChildren<TextMeshProUGUI>().text = answers[rnd[i]];
         }
 
+        rightAnswer = questions[questionID].rightAnswer;
+
         questions.RemoveAt(questionID);
+
+        foreach (Button btn in answerButtons)
+        {
+            btn.GetComponent<Button>().interactable = true;
+            btn.GetComponent<Image>().sprite = defaultSprite;
+        }
     }
 
-    public void CheckAnswer(Button pressedBtn)
+    public void CheckAnswer(Button _pressedBtn)
     {
-        pressedButton = pressedBtn;
-        answer1.GetComponent<Button>().interactable = false;
-        answer2.GetComponent<Button>().interactable = false;
-        answer3.GetComponent<Button>().interactable = false;
-        answer4.GetComponent<Button>().interactable = false;
-
-        userAnswer = pressedButton.GetComponentInChildren<TextMeshProUGUI>().text;
-        if (userAnswer == rightAnswer) 
+        foreach (Button btn in answerButtons)
         {
-            pressedButton.GetComponent<Image>().sprite = rightSprite;
+            btn.GetComponent<Button>().interactable = false; // Except double click
+            if (btn.GetComponentInChildren<TextMeshProUGUI>().text == rightAnswer) // Search right button for wrong sprite
+                rightButton = btn;
+        }
+
+        userAnswer = _pressedBtn.GetComponentInChildren<TextMeshProUGUI>().text;
+
+        if (userAnswer == rightAnswer)
+        {
+            _pressedBtn.GetComponent<Image>().sprite = rightSprite;
             correctAnswers++;
         }
         else
         {
-            pressedButton.GetComponent<Image>().sprite = wrongSprite;
+            _pressedBtn.GetComponent<Image>().sprite = wrongSprite;
             rightButton.GetComponent<Image>().sprite = rightSprite;
             lives--;
             mistakes++;
         }
 
+        UIManager.instance.UpdateGameLabels(correctAnswers, lives); //Instead of OnGUI()
+
         if (mistakes == 3)
         {
-            menuButton.interactable = false;
+            UIManager.instance.menuButton.interactable = false;
             UIManager.instance.OpenEndWindow(false);
-            Invoke("EndGame", 1.5f);
+            StartCoroutine(EndGame());
         }
-        else if (correctAnswers == 5)
+        else if (correctAnswers == 10)
         {
-            menuButton.interactable = false;
+            UIManager.instance.menuButton.interactable = false;
             UIManager.instance.OpenEndWindow(true);
-            if (UserData.currentLvl == UserData.OpenedLvls_Player) //open new lvl
+            if (UserData.currentLvl == UserData.OpenedLvls_Player && UserData.currentLvl < 5) // Open new lvl
             {
-                UserData.OpenedLvls_Player += 1;
-                StartCoroutine(FirebaseManager.instance.UpdateOpenedLvls(UserData.OpenedLvls_Player));
-                //EndGame() and UIManager.instance.CloseEndWindow() I transferred to UpdateOpenedLvls Coroutine in FirebaseManager.cs
+                UserData.OpenedLvls_Player = UserData.currentLvl + 1;
             }
+            StartCoroutine(EndGame());
         }
         else
         {
-            Invoke("AfterCheckAnswer", 1.5f);
+            Invoke("ShowQuestion", 1.5f);
         }
     }
 
-    private void AfterCheckAnswer()
+    public IEnumerator EndGame()
     {
-        pressedButton.GetComponent<Image>().sprite = defaultSprite;
-        rightButton.GetComponent<Image>().sprite = defaultSprite;
-        ShowQuestion();
-        answer1.GetComponent<Button>().interactable = true;
-        answer2.GetComponent<Button>().interactable = true;
-        answer3.GetComponent<Button>().interactable = true;
-        answer4.GetComponent<Button>().interactable = true;
-    }
-
-    public void EndGame()
-    {
-        pressedButton.GetComponent<Image>().sprite = defaultSprite;
-        rightButton.GetComponent<Image>().sprite = defaultSprite;
-        answer1.GetComponent<Button>().interactable = true;
-        answer2.GetComponent<Button>().interactable = true;
-        answer3.GetComponent<Button>().interactable = true;
-        answer4.GetComponent<Button>().interactable = true;
         UserData.CorrectAnswers_Player += correctAnswers;
         UserData.Mistakes_Player += mistakes;
+        StartCoroutine(FirebaseManager.instance.UpdateOpenedLvls(UserData.OpenedLvls_Player));
         StartCoroutine(FirebaseManager.instance.UpdateCorrectAnswers(UserData.CorrectAnswers_Player));
         StartCoroutine(FirebaseManager.instance.UpdateMistakes(UserData.Mistakes_Player));
+
+        yield return new WaitForSeconds(2);
+
+        Debug.Log("Closing game!");
         questions.Clear();
+        UIManager.instance.UpdateLvlButtons();
+        UIManager.instance.lvlButtonsActive = false;
+        UIManager.instance.lvlButtonsUI.SetActive(false); // Don't use ToggleLvlButtons because user can click on playButton twice
+        UIManager.instance.CloseConfirmEndGameWindow();
         UIManager.instance.CloseEndWindow();
-        UIManager.instance.CloseGameScreen();
+        UIManager.instance.UserDataScreen();
+        UIManager.instance.menuButton.interactable = true;
+
+        pressedYesButton.interactable = true;
+        pressedNoButton.interactable = true;
     }
 }

@@ -60,18 +60,13 @@ public class FirebaseManager : MonoBehaviour
 
     //UserData variables
     [Header("UserData")]
-    public Button usernameButton;
-    public TMP_InputField usernameField;
-    public TMP_InputField correctAnswers;
-    public TMP_InputField openedLvlsField;
-    public TMP_InputField openedLvls;
     public GameObject scoreElement;
     public Transform scoreBoardContent;
 
     //Lvls variables
     [Header("Lvls")]
     public GameObject firstBtn, secondBtn, thirdBtn;
-    public List<Question> questions = new List<Question>(); //questions for ONE lvl
+    //public List<Question> questions = new List<Question>(); //questions for ONE lvl
     public int openedLvlsForUI;
 
     void Awake()
@@ -126,6 +121,7 @@ public class FirebaseManager : MonoBehaviour
 
     public void LoginButton()
     {
+        UIManager.instance.blockLoginPanel.SetActive(true);
         StartCoroutine(Login(emailLoginField.text, passwordLoginField.text));
     }
 
@@ -134,45 +130,13 @@ public class FirebaseManager : MonoBehaviour
         StartCoroutine(Register(emailRegisterField.text, passwordRegisterField.text, usernameRegisterField.text));
     }
 
-    public void SignOutButton()
+    public void SignOut()
     {
         auth.SignOut();
         UIManager.instance.LoginScreen();
+        UserData.ClearData();
         ClearRegisterFields();
         ClearLoginFields();
-    }
-
-    //Скорее всего надо будет удалить этот метод
-    public void SaveDataButton()
-    {
-        StartCoroutine(UpdateUsernameAuth(usernameField.text));
-        StartCoroutine(UpdateUsernameDatabase(usernameField.text));
-
-        StartCoroutine(UpdateCorrectAnswers(int.Parse(correctAnswers.text)));
-        StartCoroutine(UpdateMistakes(int.Parse(openedLvlsField.text)));
-        StartCoroutine(UpdateOpenedLvls(int.Parse(openedLvls.text)));
-    }
-
-    public void ScoreboardButton()
-    {
-        StartCoroutine(LoadScoreboardData());
-    }
-
-    public void UsernameOpenButton()
-    {
-        UIManager.instance.OpenUsernamePanel();
-    }
-
-    public void UsernameSaveButton()
-    {
-        StartCoroutine(UpdateUsernameAuth(usernameField.text));
-        StartCoroutine(UpdateUsernameDatabase(usernameField.text));
-    }
-
-    public void UsernameCloseButton()
-    {
-        UIManager.instance.CloseUsernamePanel();
-        usernameField.text = "";
     }
 
     private IEnumerator Login(string _email, string _password)
@@ -204,6 +168,7 @@ public class FirebaseManager : MonoBehaviour
                     break;
             }
             warningLoginText.text = message;
+            UIManager.instance.blockLoginPanel.SetActive(false);
         }
         else
         {
@@ -217,8 +182,8 @@ public class FirebaseManager : MonoBehaviour
 
             yield return new WaitForSeconds(2);
 
-            //usernameButton.GetComponent<Text>().text = User.DisplayName; //don't work if changes occurred on Firebase.com
-            //usernameField.text = User.DisplayName;
+            UIManager.instance.username.text = UserData.Username_Player;
+            UIManager.instance.UpdateLvlButtons();
             UIManager.instance.UserDataScreen();
             confirmLoginText.text = "";
             ClearLoginFields();
@@ -248,7 +213,7 @@ public class FirebaseManager : MonoBehaviour
                 FirebaseException firebaseEx = RegisterTask.Exception.GetBaseException() as FirebaseException;
                 AuthError errorCode = (AuthError)firebaseEx.ErrorCode;
 
-                string message = "Ошибка!!";
+                string message = "Ошибка!";
                 switch (errorCode)
                 {
                     case AuthError.MissingEmail:
@@ -290,6 +255,11 @@ public class FirebaseManager : MonoBehaviour
                     }
                     else
                     {
+                        StartCoroutine(UpdateUsernameDatabase(_username));
+                        yield return new WaitForSeconds(1);
+                        StartCoroutine(UpdateOpenedLvls(1));
+                        StartCoroutine(UpdateCorrectAnswers(0));
+                        StartCoroutine(UpdateMistakes(0));
                         //Username is now set
                         //Now return to login screen
                         UIManager.instance.LoginScreen();
@@ -323,7 +293,7 @@ public class FirebaseManager : MonoBehaviour
     }
 
 
-    public IEnumerator UpdateUsernameDatabase(string _username)
+    public IEnumerator UpdateUsernameDatabase(string _username) // Also create user in database
     {
         var DBTask = DBReference.Child("users").Child(User.UserId).Child("username").SetValueAsync(_username);
 
@@ -336,7 +306,6 @@ public class FirebaseManager : MonoBehaviour
         else
         {
             //Database username is now updated
-            usernameButton.GetComponent<Text>().text = _username;
         }
     }
 
@@ -352,7 +321,7 @@ public class FirebaseManager : MonoBehaviour
         }
         else
         {
-            //CorrectAnswers is now updated
+            Debug.Log("CorrectAnswers updated!");
         }
     }
 
@@ -368,7 +337,7 @@ public class FirebaseManager : MonoBehaviour
         }
         else
         {
-            //Mistakes are now updated
+            Debug.Log("Mistakes updated!");
         }
     }
 
@@ -385,8 +354,7 @@ public class FirebaseManager : MonoBehaviour
         else
         {
             //OpenedLvls are now updated
-            openedLvlsForUI = _openedLvls;
-            GameManager.instance.EndGame();
+            Debug.Log("OpenedLvls updated!");
         }
     }
 
@@ -403,28 +371,20 @@ public class FirebaseManager : MonoBehaviour
         else if (DBTask.Result.Value == null)
         {
             //No data exist
-            correctAnswers.text = "0";
-            openedLvlsField.text = "0";
-            openedLvls.text = "0";
         }
         else
         {
-            //Data has been retrieved
             DataSnapshot snapshot = DBTask.Result;
 
-            usernameButton.GetComponent<Text>().text = snapshot.Child("username").Value.ToString(); //update if I changed username on Firebase.com
-            correctAnswers.text = snapshot.Child("correctAnswers").Value.ToString();
-            openedLvlsField.text = snapshot.Child("openedLvls").Value.ToString();
-            openedLvlsForUI = int.Parse(snapshot.Child("openedLvls").Value.ToString());
-            openedLvls.text = snapshot.Child("openedLvls").Value.ToString();
-
-            UserData.CorrectAnswers_Player = int.Parse(correctAnswers.text);
-            UserData.OpenedLvls_Player = int.Parse(openedLvlsField.text);
-            UserData.Mistakes_Player = int.Parse(openedLvls.text);
+            UserData.Username_Player = snapshot.Child("username").Value.ToString();
+            UserData.CorrectAnswers_Player = int.Parse(snapshot.Child("correctAnswers").Value.ToString());
+            UserData.OpenedLvls_Player = int.Parse(snapshot.Child("openedLvls").Value.ToString());
+            Debug.Log(UserData.OpenedLvls_Player);
+            UserData.Mistakes_Player = int.Parse(snapshot.Child("mistakes").Value.ToString());
         }
     }
 
-    private IEnumerator LoadScoreboardData()
+    public IEnumerator LoadScoreboardData()
     {
         var DBTask = DBReference.Child("users").OrderByChild("openedLvls").GetValueAsync();
 
@@ -436,16 +396,14 @@ public class FirebaseManager : MonoBehaviour
         }
         else
         {
-            //Data has been retrieved
             DataSnapshot snapshot = DBTask.Result;
 
-            //Destroy any exisiting scoreboard elements
+            // Clear Scoreboard
             foreach (Transform child in scoreBoardContent.transform)
             {
                 Destroy(child.gameObject);
             }
             
-            //Loop through every users UID
             foreach (DataSnapshot childSnapshot in snapshot.Children.Reverse<DataSnapshot>())
             {
                 string username = childSnapshot.Child("username").Value.ToString();
@@ -453,33 +411,20 @@ public class FirebaseManager : MonoBehaviour
                 int mistakes = int.Parse(childSnapshot.Child("mistakes").Value.ToString());
                 int correctAnswers = int.Parse(childSnapshot.Child("correctAnswers").Value.ToString());
 
-                //Instantiate new scoreboard elements
+                // Create userData string
                 GameObject scoreboardElement = Instantiate(scoreElement, scoreBoardContent);
                 scoreboardElement.GetComponent<ScoreElement>().NewScoreElement(username, openedLvls, correctAnswers, mistakes);
             }
 
-            //Go to scoreboard screen
             UIManager.instance.ScoreboardScreen();
         }
     }
 
     //=======================================FOR QUESTIONS=======================================
 
-    public void OpenLvl(string lvlChoice)
+    public IEnumerator LoadQuestions(string _selectedLvl, List<Question> _questions)
     {
-        for (int i = 0; i < UIManager.instance.lvlButtons.Length; i++)
-        {
-            UIManager.instance.lvlButtons[i].GetComponent<Button>().interactable = false; //for only ONE click on button
-        }
-        StartCoroutine(LoadQuestions(lvlChoice));
-        UserData.currentLvl = int.Parse(lvlChoice);
-        UIManager.instance.ClearScreen();
-    }
-
-
-    private IEnumerator LoadQuestions(string selectedLvl)
-    {
-        var DBTask = DBReference.Child("lvls").Child(selectedLvl).GetValueAsync();
+        var DBTask = DBReference.Child("lvls").Child(_selectedLvl).GetValueAsync();
 
         yield return new WaitUntil(predicate: () => DBTask.IsCompleted);
 
@@ -490,31 +435,30 @@ public class FirebaseManager : MonoBehaviour
         else if (DBTask.Result.Value == null)
         {
             //No data exist
-            questions.Add(new Question("Вопрос не загружен", "Ошибка", "Загрузки", "Данных", "Better Call B1t", ""));
         }
         else
         {
             //Data has been retrieved
             DataSnapshot snapshot = DBTask.Result;
 
+            Debug.Log(snapshot.ChildrenCount);
+
             foreach (DataSnapshot childSnapshot in snapshot.Children.Reverse<DataSnapshot>())
             {
                 string question = childSnapshot.Child("question").Value.ToString();
+                Debug.Log(question);
                 string answer1 = childSnapshot.Child("answer1").Value.ToString();
                 string answer2 = childSnapshot.Child("answer2").Value.ToString();
                 string answer3 = childSnapshot.Child("answer3").Value.ToString();
                 string answer4 = childSnapshot.Child("answer4").Value.ToString();
                 string rightAnswer = childSnapshot.Child("rightAnswer").Value.ToString();
 
-                questions.Add(new Question(question, answer1, answer2, answer3, answer4, rightAnswer));
+                _questions.Add(new Question(question, answer1, answer2, answer3, answer4, rightAnswer));
             }
-            GameManager.instance.questions = questions; //send list of questions to GameManager
-            UIManager.instance.OpenGameScreen();
-            GameManager.instance.lives = 3;
-            GameManager.instance.mistakes = 0;
-            GameManager.instance.correctAnswers = 0;
             GameManager.instance.ShowQuestion();
-            Debug.Log($"Count questions in FirebaseManager - {questions.Count}");
+            UIManager.instance.GameScreen();
+
+            Debug.Log($"Count questions in FirebaseManager - {_questions.Count}");
         }
     }
 

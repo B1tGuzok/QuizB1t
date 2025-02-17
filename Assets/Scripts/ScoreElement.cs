@@ -1,20 +1,18 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 
 public class ScoreElement : MonoBehaviour
 {
     public TMP_Text usernameText;
-    public TMP_Text killsText;
-    public TMP_Text deathsText;
-    public TMP_Text xpText;
+    public TMP_Text openedLvlsText;
+    public TMP_Text correctAnswersText;
+    public TMP_Text mistakesText;
 
-    public void NewScoreElement(string _username, int _kills, int _deaths, int _xp)
+    public void NewScoreElement(string _username, int _openedLvls, int _correctAnswers, int _mistakes)
     {
         usernameText.text = _username;
-        killsText.text = _kills.ToString();
-        deathsText.text = _deaths.ToString();
-        xpText.text = _xp.ToString();
+        openedLvlsText.text = _openedLvls.ToString();
+        correctAnswersText.text = _correctAnswers.ToString();
+        mistakesText.text = _mistakes.ToString();
     }
 }
